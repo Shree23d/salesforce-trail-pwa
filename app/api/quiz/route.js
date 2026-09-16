@@ -39,15 +39,46 @@ const QUIZ_SCHEMA = {
   }
 };
 
+/**
+ * Helper to ensure we always return exactly 7 questions, even in fallback mode.
+ */
+function getEnsuredFallbackQuestions(topic, difficulty, subtopicId) {
+  const specificSubtopic = subtopicId && APEX_SUBTOPIC_FALLBACKS[subtopicId];
+  const generalTopic =
+    FALLBACK_QUESTIONS[topic]?.[difficulty] ||
+    FALLBACK_QUESTIONS["Apex & Architecture"]?.[difficulty] ||
+    FALLBACK_QUESTIONS["Apex & Architecture"]["Beginner"];
+
+  if (specificSubtopic && specificSubtopic.length >= 7) {
+    return specificSubtopic.slice(0, 7);
+  }
+
+  if (specificSubtopic && specificSubtopic.length > 0) {
+    // Fill the rest up to 7 from the general topic pool
+    const combined = [...specificSubtopic];
+    generalTopic.forEach((q) => {
+      if (combined.length < 7 && !combined.some((item) => item.question === q.question)) {
+        combined.push({ ...q, id: combined.length + 1 });
+      }
+    });
+    return combined.slice(0, 7);
+  }
+
+  return generalTopic.slice(0, 7);
+}
+
 export async function POST(request) {
+  let requestedTopic = "Security & Access";
+  let requestedDifficulty = "Beginner";
+  let requestedSubtopic = null;
+  let requestedSubtopicId = null;
+
   try {
     const body = await request.json();
-    const {
-      topic = "Security & Access",
-      difficulty = "Beginner",
-      subtopic = null,
-      subtopicId = null
-    } = body || {};
+    requestedTopic = body.topic || "Security & Access";
+    requestedDifficulty = body.difficulty || "Beginner";
+    requestedSubtopic = body.subtopic || null;
+    requestedSubtopicId = body.subtopicId || null;
 
     const apiKey = process.env.GEMINI_API_KEY;
     const isApiKeyValid = Boolean(
@@ -56,39 +87,48 @@ export async function POST(request) {
       apiKey.trim().length > 10
     );
 
-    // If Gemini key is not yet set or during offline development, serve from authentic question bank
+    // If Gemini key is not configured in Vercel environment variables
     if (!isApiKeyValid) {
-      console.log(`[API /api/quiz] Using offline question bank for: ${topic} (${subtopic || difficulty})`);
-      const fallbackList =
-        (subtopicId && APEX_SUBTOPIC_FALLBACKS[subtopicId]) ||
-        FALLBACK_QUESTIONS[topic]?.[difficulty] ||
-        FALLBACK_QUESTIONS["Apex & Architecture"]["Beginner"];
+      console.warn(`[API /api/quiz] GEMINI_API_KEY not detected or invalid. Using offline bank.`);
+      const fallbackList = getEnsuredFallbackQuestions(
+        requestedTopic,
+        requestedDifficulty,
+        requestedSubtopicId
+      );
 
       return Response.json({
-        source: "question-bank",
-        topic,
-        subtopic,
-        difficulty,
+        source: "offline-bank-no-key",
+        topic: requestedTopic,
+        subtopic: requestedSubtopic,
+        difficulty: requestedDifficulty,
         questions: fallbackList,
+        notice: "Gemini API key is not configured in environment variables. To get unlimited dynamic AI questions, add GEMINI_API_KEY in Vercel settings.",
       });
     }
 
     // Call Google Gemini API
     const ai = new GoogleGenAI({ apiKey });
 
-    const systemPrompt = `You are a Principal Salesforce Certified Technical Architect (CTA) and examination author.
-Generate a high-yield, exactly 7-question multiple choice quiz for Salesforce professionals.
-Topic: "${topic}".
-${subtopic ? `Specific Sub-Topic / Section Focus: "${subtopic}". All 7 questions MUST directly and specifically test concepts, syntax, and scenarios from this exact sub-topic.` : ''}
-Difficulty Level: "${difficulty}".
+    // Generate unique seed so questions are fresh and never identical on repeated attempts
+    const uniqueSessionSeed = `${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
 
-Rules:
-1. Generate exactly 7 questions.
-2. Provide exactly 4 options per question.
-3. correct_index must be the 0-based index (0, 1, 2, or 3) of the correct answer.
-4. explanation_correct: Exactly 2 punchy lines explaining why the correct choice is valid.
-5. explanation_wrong: Exactly 2 punchy lines explaining why the other options fail or gotchas to avoid.
-6. Make scenario questions practical and realistic (e.g. Universal Containers, real governor limits, exact UI/API behavior).`;
+    const systemPrompt = `You are a Principal Salesforce Certified Technical Architect (CTA) and examination author.
+Generate a brand new, highly realistic, exactly 7-question multiple choice quiz for Salesforce professionals.
+Topic: "${requestedTopic}".
+${requestedSubtopic ? `Specific Sub-Topic Focus: "${requestedSubtopic}". All 7 questions MUST directly and specifically test syntax, methods, and practical scenarios from this exact sub-topic.` : ''}
+Difficulty Level: "${requestedDifficulty}".
+Random Seed / Session: "${uniqueSessionSeed}".
+
+CRITICAL INSTRUCTIONS FOR VARIETY:
+- Generate completely fresh, unique scenario questions. Do not repeat standard trivial questions.
+- For Beginner: test core syntax, definitions, methods, and return types.
+- For Intermediate: test multi-step business logic, relations, and common governor limit warnings.
+- For Tricky Scenario: test exam gotchas, order of execution nuances, silent failures, and exception behaviors.
+- Each of the 7 questions MUST be distinct from each other.
+- Exactly 4 options per question.
+- correct_index must be the 0-based index (0, 1, 2, or 3) of the correct answer.
+- explanation_correct: Exactly 2 punchy lines explaining why the correct choice is valid.
+- explanation_wrong: Exactly 2 punchy lines explaining why the other options fail or common pitfalls to avoid.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.6-flash',
@@ -96,7 +136,7 @@ Rules:
       config: {
         responseMimeType: 'application/json',
         responseSchema: QUIZ_SCHEMA,
-        temperature: 0.7,
+        temperature: 0.95, // High temperature guarantees varied questions on each attempt
       },
     });
 
@@ -104,27 +144,36 @@ Rules:
     const questions = JSON.parse(text);
 
     if (!Array.isArray(questions) || questions.length === 0) {
-      throw new Error("Gemini returned invalid or empty questions array");
+      throw new Error("Gemini returned an empty questions array");
     }
+
+    // Ensure all 7 have proper sequential IDs 1 to 7
+    const normalizedQuestions = questions.slice(0, 7).map((q, idx) => ({
+      ...q,
+      id: idx + 1,
+    }));
 
     return Response.json({
       source: "gemini-ai",
-      topic,
-      subtopic,
-      difficulty,
-      questions,
+      topic: requestedTopic,
+      subtopic: requestedSubtopic,
+      difficulty: requestedDifficulty,
+      questions: normalizedQuestions,
     });
   } catch (err) {
     console.error("[API /api/quiz] Error generating quiz with Gemini:", err);
-    // Graceful fallback to authentic question bank
-    const topic = "Security & Access";
-    const difficulty = "Beginner";
-    const fallbackList = FALLBACK_QUESTIONS[topic][difficulty];
+    // Graceful fallback matching the actual requested topic & difficulty
+    const fallbackList = getEnsuredFallbackQuestions(
+      requestedTopic,
+      requestedDifficulty,
+      requestedSubtopicId
+    );
 
     return Response.json({
       source: "fallback-on-error",
-      topic,
-      difficulty,
+      topic: requestedTopic,
+      subtopic: requestedSubtopic,
+      difficulty: requestedDifficulty,
       questions: fallbackList,
       error_message: err.message,
     });
