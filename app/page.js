@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import TopicSelector from '@/components/TopicSelector';
@@ -8,7 +8,8 @@ import ApexCurriculumView from '@/components/ApexCurriculumView';
 import QuizEngine from '@/components/QuizEngine';
 import ResultsView from '@/components/ResultsView';
 import HistoryView from '@/components/HistoryView';
-import { saveQuizAttempt } from '@/lib/supabaseClient';
+import { saveQuizAttempt, fetchQuizHistory, isSupabaseConfigured } from '@/lib/supabaseClient';
+import { calculateStreakStats } from '@/lib/streakUtils';
 
 const STORAGE_KEY_ACTIVE = 'salesforce_pwa_active_quiz';
 const STORAGE_KEY_HISTORY = 'salesforce_pwa_quiz_history';
@@ -35,8 +36,38 @@ export default function Home() {
   const [savedQuizState, setSavedQuizState] = useState(null);
   const [isSavedToCloud, setIsSavedToCloud] = useState(false);
 
-  // 1. On Mount: Check LocalStorage for any active in-flight quiz
+  // Global quiz history & streak tracking
+  const [quizHistory, setQuizHistory] = useState([]);
+
+  // Compute live streak stats
+  const streakStats = useMemo(() => calculateStreakStats(quizHistory), [quizHistory]);
+
+  // Load history from Supabase or LocalStorage on mount
+  const loadHistoryData = useCallback(async () => {
+    let items = [];
+    if (isSupabaseConfigured) {
+      const { data, error } = await fetchQuizHistory(100);
+      if (!error && data && data.length > 0) {
+        items = data;
+      }
+    }
+
+    if (items.length === 0) {
+      try {
+        const local = localStorage.getItem(STORAGE_KEY_HISTORY);
+        if (local) items = JSON.parse(local);
+      } catch (e) {
+        console.error('Failed reading local history for streak:', e);
+      }
+    }
+
+    setQuizHistory(items);
+  }, []);
+
+  // 1. On Mount: Check LocalStorage for active quiz + load history
   useEffect(() => {
+    loadHistoryData();
+
     try {
       const stored = localStorage.getItem(STORAGE_KEY_ACTIVE);
       if (stored) {
@@ -48,7 +79,7 @@ export default function Home() {
     } catch (e) {
       console.error('Failed reading saved quiz from storage:', e);
     }
-  }, []);
+  }, [loadHistoryData]);
 
   // 2. Persist active quiz progress to LocalStorage whenever state updates
   useEffect(() => {
@@ -200,7 +231,7 @@ export default function Home() {
     return correctCount;
   }, [questions, answers]);
 
-  // Finish quiz & persist to Supabase + LocalStorage history
+  // Finish quiz & persist to Supabase + LocalStorage history + update streak
   const handleFinishQuiz = async () => {
     const finalScore = calculateScore();
     setQuizState('results');
@@ -225,10 +256,13 @@ export default function Home() {
       questions_data: fullQuestionsData,
     };
 
-    // 1. Save to LocalStorage History (Instant offline persistence)
+    // 1. Update In-Memory History & Streak Instantly
+    setQuizHistory((prev) => [attemptPayload, ...prev]);
+
+    // 2. Save to LocalStorage History (Instant offline persistence)
     try {
       const existingHistory = JSON.parse(localStorage.getItem(STORAGE_KEY_HISTORY) || '[]');
-      const updatedHistory = [attemptPayload, ...existingHistory].slice(0, 50);
+      const updatedHistory = [attemptPayload, ...existingHistory].slice(0, 100);
       localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(updatedHistory));
       // Remove in-flight quiz record
       localStorage.removeItem(STORAGE_KEY_ACTIVE);
@@ -237,7 +271,7 @@ export default function Home() {
       console.error('Failed writing local history:', e);
     }
 
-    // 2. Save to Supabase Cloud
+    // 3. Save to Supabase Cloud
     const { error } = await saveQuizAttempt({
       topic: attemptTopic,
       difficulty: selectedDifficulty,
@@ -255,11 +289,12 @@ export default function Home() {
 
   return (
     <div className="flex-1 flex flex-col min-h-screen">
-      {/* Header */}
+      {/* Header with Streak Flame */}
       <Header
         currentTopic={selectedSubtopic || selectedTopic}
         currentDifficulty={selectedDifficulty}
         isQuizActive={quizState === 'taking'}
+        currentStreak={streakStats.currentStreak}
       />
 
       {/* Main Content Area */}
@@ -291,9 +326,9 @@ export default function Home() {
             difficulty={selectedDifficulty}
             questions={questions}
             answers={answers}
+            currentStreak={streakStats.currentStreak}
             onRetake={() => {
               if (selectedSubtopic) {
-                // Retake subtopic quiz
                 const secNum = parseInt(selectedSubtopic.match(/\d+/)?.[0] || '1', 10);
                 handleStartSubtopicQuiz({ sectionNumber: secNum, title: selectedSubtopic, id: `section-${secNum}` }, selectedDifficulty);
               } else {
@@ -327,6 +362,7 @@ export default function Home() {
             onResumeQuiz={handleResumeQuiz}
             onDiscardSavedQuiz={handleDiscardSavedQuiz}
             onOpenApexCurriculum={() => setQuizState('apex_curriculum')}
+            quizHistory={quizHistory}
           />
         )}
       </main>

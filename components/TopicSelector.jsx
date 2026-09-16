@@ -1,6 +1,7 @@
 'use client';
 
 import { Shield, Database, Workflow, Code2, Sparkles, Flame, Zap, Compass, RotateCcw } from 'lucide-react';
+import StreakHeatmap from './StreakHeatmap';
 
 export const TOPICS = [
   {
@@ -76,6 +77,7 @@ export default function TopicSelector({
   onResumeQuiz,
   onDiscardSavedQuiz,
   onOpenApexCurriculum,
+  quizHistory = [],
 }) {
   return (
     <div className="flex-1 px-4 pt-4 pb-28 space-y-6">
@@ -107,6 +109,9 @@ export default function TopicSelector({
           </div>
         </div>
       )}
+
+      {/* GitHub-Style Streak Heatmap & Daily Tracker */}
+      <StreakHeatmap quizHistory={quizHistory} />
 
       {/* Hero Welcome */}
       <div className="space-y-1">

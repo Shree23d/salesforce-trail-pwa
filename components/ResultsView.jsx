@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Award, CheckCircle2, XCircle, RotateCcw, ArrowRight, BookOpen, Sparkles, CloudCheck } from 'lucide-react';
+import { Award, CheckCircle2, XCircle, RotateCcw, ArrowRight, BookOpen, Sparkles, CloudCheck, Flame } from 'lucide-react';
 
 export default function ResultsView({
   score,
@@ -14,6 +14,7 @@ export default function ResultsView({
   onNewQuiz,
   onGoToHistory,
   isSavedToCloud,
+  currentStreak = 1,
 }) {
   const [filterTab, setFilterTab] = useState('incorrect'); // 'incorrect' | 'correct' | 'all'
 
@@ -46,10 +47,19 @@ export default function ResultsView({
         {/* Ambient Glow */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-20 bg-sky-500/10 blur-2xl pointer-events-none" />
 
-        <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[11px] font-bold border uppercase tracking-wider mx-auto shadow-sm">
-          <span className={`px-2.5 py-0.5 rounded-full border ${badge.color}`}>
-            {badge.label}
-          </span>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[11px] font-bold border uppercase tracking-wider shadow-sm">
+            <span className={`px-2.5 py-0.5 rounded-full border ${badge.color}`}>
+              {badge.label}
+            </span>
+          </div>
+
+          {currentStreak > 0 && (
+            <div className="inline-flex items-center space-x-1 px-3 py-1 rounded-full bg-gradient-to-r from-orange-950/80 to-amber-950/80 border border-orange-500/50 text-[11px] font-bold text-amber-300 shadow-sm animate-pulse">
+              <Flame className="w-3.5 h-3.5 text-orange-400 fill-orange-400" />
+              <span>{currentStreak} Day Streak!</span>
+            </div>
+          )}
         </div>
 
         {/* Circular / Large Score Counter */}
