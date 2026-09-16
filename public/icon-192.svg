@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#161F30" />
+      <stop offset="100%" stop-color="#0B0F17" />
+    </linearGradient>
+    <linearGradient id="cloudGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#0284C7" />
+    </linearGradient>
+    <linearGradient id="boltGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047" />
+      <stop offset="100%" stop-color="#EAB308" />
+    </linearGradient>
+  </defs>
+  <!-- Background with rounded corners -->
+  <rect width="192" height="192" rx="42" fill="url(#bgGrad)" stroke="#243049" stroke-width="4"/>
+  <!-- Salesforce-style Cloud Shape -->
+  <path d="M125 78a28 28 0 0 0-52.5-12.8A24 24 0 0 0 46 88a24 24 0 0 0 2 9.6A28 28 0 0 0 54 152h82a26 26 0 0 0 5.5-51.4A28 28 0 0 0 125 78z" fill="url(#cloudGrad)" opacity="0.95"/>
+  <!-- Lightning Bolt for Quiz Mastery -->
+  <polygon points="102,68 84,106 98,106 90,144 118,98 104,98" fill="url(#boltGrad)"/>
+</svg>

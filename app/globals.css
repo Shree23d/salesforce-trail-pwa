@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@theme {
+  --color-app-bg: #0B0F17;
+  --color-app-surface: #161F30;
+  --color-app-surface-light: #1D2A42;
+  --color-app-border: #243049;
+  --color-app-border-light: #334466;
+  --color-app-primary: #0284C7;
+  --color-app-primary-hover: #0369A1;
+  --color-app-emerald: #059669;
+  --color-app-rose: #E11D48;
+  --color-app-amber: #D97706;
+}
+
+:root {
+  --app-bg: #0B0F17;
+  --app-surface: #161F30;
+  --app-border: #243049;
+  --app-primary: #0284C7;
+}
+
+/* Mobile & Touch Rules */
+html, body {
+  background-color: #0B0F17;
+  color: #F1F5F9;
+  overscroll-behavior-y: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbars for mobile */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #243049;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334466;
+}
