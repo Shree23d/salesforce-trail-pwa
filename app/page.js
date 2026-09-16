@@ -42,26 +42,42 @@ export default function Home() {
   // Compute live streak stats
   const streakStats = useMemo(() => calculateStreakStats(quizHistory), [quizHistory]);
 
-  // Load history from Supabase or LocalStorage on mount
+  // Load history from Supabase and LocalStorage on mount (merging both)
   const loadHistoryData = useCallback(async () => {
-    let items = [];
+    let cloudItems = [];
     if (isSupabaseConfigured) {
-      const { data, error } = await fetchQuizHistory(100);
-      if (!error && data && data.length > 0) {
-        items = data;
-      }
-    }
-
-    if (items.length === 0) {
       try {
-        const local = localStorage.getItem(STORAGE_KEY_HISTORY);
-        if (local) items = JSON.parse(local);
-      } catch (e) {
-        console.error('Failed reading local history for streak:', e);
+        const { data, error } = await fetchQuizHistory(100);
+        if (!error && Array.isArray(data)) {
+          cloudItems = data;
+        }
+      } catch (err) {
+        console.warn('[Supabase] History fetch error:', err);
       }
     }
 
-    setQuizHistory(items);
+    let localItems = [];
+    try {
+      const local = localStorage.getItem(STORAGE_KEY_HISTORY);
+      if (local) localItems = JSON.parse(local);
+    } catch (e) {
+      console.error('Failed reading local history for streak:', e);
+    }
+
+    // Merge cloud and local items without duplicates
+    const combined = [...cloudItems];
+    const existingIds = new Set(cloudItems.map((item) => item.id).filter(Boolean));
+
+    localItems.forEach((local) => {
+      if (!local.id || !existingIds.has(local.id)) {
+        combined.push(local);
+      }
+    });
+
+    // Sort by latest first
+    combined.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+    setQuizHistory(combined);
   }, []);
 
   // 1. On Mount: Check LocalStorage for active quiz + load history
@@ -349,6 +365,7 @@ export default function Home() {
             onBack={() => setQuizState('selector')}
             onStartSubtopicQuiz={handleStartSubtopicQuiz}
             isLoading={isLoading}
+            currentStreak={streakStats.currentStreak}
           />
         ) : (
           <TopicSelector

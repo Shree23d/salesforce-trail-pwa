@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeft, Search, ChevronDown, ChevronUp, Sparkles, BookOpen, Layers, CheckCircle2, Code2, Zap } from 'lucide-react';
+import { ArrowLeft, Search, ChevronDown, ChevronUp, Sparkles, BookOpen, Layers, CheckCircle2, Code2, Zap, Flame } from 'lucide-react';
 import { APEX_SECTIONS, APEX_MODULES } from '@/lib/apexCurriculum';
 import { DIFFICULTIES } from './TopicSelector';
 
@@ -9,6 +9,7 @@ export default function ApexCurriculumView({
   onBack,
   onStartSubtopicQuiz,
   isLoading,
+  currentStreak = 0,
 }) {
   const [selectedModule, setSelectedModule] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -69,6 +70,26 @@ export default function ApexCurriculumView({
         <p className="text-xs text-slate-400 leading-relaxed">
           27 structured sections from day-one syntax to enterprise REST APIs & SOLID patterns. Pick any section to generate targeted 7-question practice quizzes.
         </p>
+      </div>
+
+      {/* Streak Status Banner */}
+      <div className="p-2.5 rounded-2xl bg-[#161F30] border border-[#243049] flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <div className="w-7 h-7 rounded-lg bg-orange-950/60 border border-orange-500/40 flex items-center justify-center">
+            <Flame className="w-4 h-4 text-orange-400 fill-orange-400" />
+          </div>
+          <div>
+            <span className="text-xs font-bold text-white block">
+              {currentStreak > 0 ? `${currentStreak} Day Streak Active` : 'Start Your Streak Today!'}
+            </span>
+            <span className="text-[10px] text-slate-400">
+              Practice any section to earn today’s green tile
+            </span>
+          </div>
+        </div>
+        <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-950/60 text-amber-300 border border-amber-800/40">
+          🔥 {currentStreak}d
+        </span>
       </div>
 
       {/* Search Input */}
